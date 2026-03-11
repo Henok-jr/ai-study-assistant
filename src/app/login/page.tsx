@@ -27,14 +27,6 @@ export default async function LoginPage({
 
         <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
           <div className="flex flex-col gap-3">
-            <GoogleSignInButton />
-
-            <div className="flex items-center gap-3 py-1">
-              <div className="h-px flex-1 bg-zinc-200" />
-              <div className="text-xs text-zinc-500">or</div>
-              <div className="h-px flex-1 bg-zinc-200" />
-            </div>
-
             <form action={loginAction} className="flex flex-col gap-4">
               <label className="flex flex-col gap-2">
                 <span className="text-sm font-medium text-zinc-900">Email</span>
@@ -63,6 +55,14 @@ export default async function LoginPage({
                 Log in
               </button>
             </form>
+
+            <div className="flex items-center gap-3 py-1">
+              <div className="h-px flex-1 bg-zinc-200" />
+              <div className="text-xs text-zinc-500">or</div>
+              <div className="h-px flex-1 bg-zinc-200" />
+            </div>
+
+            <GoogleSignInButton />
           </div>
         </div>
 

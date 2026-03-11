@@ -1,24 +1,43 @@
 import Image from "next/image";
+import { createSupabaseServerClient } from '@/lib/supabaseServer';
 
-export default function Home() {
+export default async function Home() {
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const isAuthed = Boolean(user);
+
   return (
     <main className="min-h-dvh bg-zinc-50">
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-10 px-6 py-16">
         <header className="flex items-center justify-between">
           <div className="text-sm font-semibold text-zinc-900">AI Study Assistant</div>
           <nav className="flex items-center gap-3">
-            <a
-              href="/login"
-              className="rounded-lg px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-100"
-            >
-              Log in
-            </a>
-            <a
-              href="/dashboard"
-              className="rounded-lg bg-zinc-900 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-800"
-            >
-              Go to dashboard
-            </a>
+            {isAuthed ? (
+              <a
+                href="/dashboard"
+                className="rounded-lg bg-zinc-900 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-800"
+              >
+                Go to dashboard
+              </a>
+            ) : (
+              <>
+                <a
+                  href="/login"
+                  className="rounded-lg px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-100"
+                >
+                  Log in
+                </a>
+                <a
+                  href="/dashboard"
+                  className="rounded-lg bg-zinc-900 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-800"
+                >
+                  Go to dashboard
+                </a>
+              </>
+            )}
           </nav>
         </header>
 
@@ -31,12 +50,14 @@ export default function Home() {
           </p>
 
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-            <a
-              href="/signup"
-              className="inline-flex h-11 items-center justify-center rounded-xl bg-zinc-900 px-5 text-sm font-medium text-white hover:bg-zinc-800"
-            >
-              Create account
-            </a>
+            {isAuthed ? null : (
+              <a
+                href="/signup"
+                className="inline-flex h-11 items-center justify-center rounded-xl bg-zinc-900 px-5 text-sm font-medium text-white hover:bg-zinc-800"
+              >
+                Create account
+              </a>
+            )}
             <a
               href="/dashboard"
               className="inline-flex h-11 items-center justify-center rounded-xl border border-zinc-200 bg-white px-5 text-sm font-medium text-zinc-900 hover:bg-zinc-50"
