@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { loginAction } from './actions';
+import GoogleSignInButton from './GoogleSignInButton';
 
 export default async function LoginPage({
   searchParams,
@@ -24,36 +25,46 @@ export default async function LoginPage({
           </div>
         ) : null}
 
-        <form action={loginAction} className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
-          <div className="flex flex-col gap-4">
-            <label className="flex flex-col gap-2">
-              <span className="text-sm font-medium text-zinc-900">Email</span>
-              <input
-                name="email"
-                type="email"
-                required
-                className="h-11 rounded-xl border border-zinc-200 px-3 text-sm outline-none focus:border-zinc-400"
-              />
-            </label>
+        <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
+          <div className="flex flex-col gap-3">
+            <GoogleSignInButton />
 
-            <label className="flex flex-col gap-2">
-              <span className="text-sm font-medium text-zinc-900">Password</span>
-              <input
-                name="password"
-                type="password"
-                required
-                className="h-11 rounded-xl border border-zinc-200 px-3 text-sm outline-none focus:border-zinc-400"
-              />
-            </label>
+            <div className="flex items-center gap-3 py-1">
+              <div className="h-px flex-1 bg-zinc-200" />
+              <div className="text-xs text-zinc-500">or</div>
+              <div className="h-px flex-1 bg-zinc-200" />
+            </div>
 
-            <button
-              type="submit"
-              className="mt-2 h-11 rounded-xl bg-zinc-900 text-sm font-medium text-white hover:bg-zinc-800"
-            >
-              Log in
-            </button>
+            <form action={loginAction} className="flex flex-col gap-4">
+              <label className="flex flex-col gap-2">
+                <span className="text-sm font-medium text-zinc-900">Email</span>
+                <input
+                  name="email"
+                  type="email"
+                  required
+                  className="h-11 rounded-xl border border-zinc-200 px-3 text-sm outline-none focus:border-zinc-400"
+                />
+              </label>
+
+              <label className="flex flex-col gap-2">
+                <span className="text-sm font-medium text-zinc-900">Password</span>
+                <input
+                  name="password"
+                  type="password"
+                  required
+                  className="h-11 rounded-xl border border-zinc-200 px-3 text-sm outline-none focus:border-zinc-400"
+                />
+              </label>
+
+              <button
+                type="submit"
+                className="mt-1 h-11 rounded-xl bg-zinc-900 text-sm font-medium text-white hover:bg-zinc-800"
+              >
+                Log in
+              </button>
+            </form>
           </div>
-        </form>
+        </div>
 
         <div className="text-sm text-zinc-600">
           New here?{' '}
