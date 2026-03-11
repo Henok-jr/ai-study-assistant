@@ -1,9 +1,20 @@
 import { NextResponse } from 'next/server';
 import { getOpenAIClient } from '@/lib/openaiClient';
+import { createSupabaseServerClient } from '@/lib/supabaseServer';
 
 export const runtime = 'nodejs';
 
 export async function POST(req: Request) {
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
+  if (userError || !user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   const body = (await req.json().catch(() => null)) as null | { message?: string };
   const message = body?.message?.trim();
 
