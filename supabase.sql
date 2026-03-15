@@ -20,6 +20,14 @@ create table if not exists public.messages (
   created_at timestamptz not null default now()
 );
 
+-- Daily study facts (one fact per day)
+create table if not exists public.daily_facts (
+  day date primary key,
+  topic text not null,
+  fact text not null,
+  created_at timestamptz not null default now()
+);
+
 -- Helpful indexes
 create index if not exists conversations_user_id_idx on public.conversations(user_id);
 create index if not exists messages_conversation_id_idx on public.messages(conversation_id);
@@ -45,6 +53,7 @@ execute function public.set_updated_at();
 -- Enable RLS
 alter table public.conversations enable row level security;
 alter table public.messages enable row level security;
+alter table public.daily_facts enable row level security;
 
 -- RLS policies: users can only access their own rows
 
@@ -86,3 +95,13 @@ drop policy if exists "messages_delete_own" on public.messages;
 create policy "messages_delete_own" on public.messages
 for delete
 using (auth.uid() = user_id);
+
+-- Daily facts policy
+
+drop policy if exists "daily_facts_select_all" on public.daily_facts;
+create policy "daily_facts_select_all" on public.daily_facts
+for select
+using (true);
+
+-- Important: we intentionally do NOT allow authenticated users to insert/update.
+-- Inserts should be done server-side using the service role key.
