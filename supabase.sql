@@ -28,10 +28,21 @@ create table if not exists public.daily_facts (
   created_at timestamptz not null default now()
 );
 
+-- Tool activity (store last-used topic per tool for the user)
+create table if not exists public.tool_activity (
+  user_id uuid not null references auth.users(id) on delete cascade,
+  tool text not null check (tool in ('flashcards','quiz')),
+  topic text not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (user_id, tool)
+);
+
 -- Helpful indexes
 create index if not exists conversations_user_id_idx on public.conversations(user_id);
 create index if not exists messages_conversation_id_idx on public.messages(conversation_id);
 create index if not exists messages_user_id_idx on public.messages(user_id);
+create index if not exists tool_activity_user_id_idx on public.tool_activity(user_id);
 
 -- Automatically keep conversations.updated_at fresh
 create or replace function public.set_updated_at()
@@ -50,10 +61,17 @@ before update on public.conversations
 for each row
 execute function public.set_updated_at();
 
+drop trigger if exists set_tool_activity_updated_at on public.tool_activity;
+create trigger set_tool_activity_updated_at
+before update on public.tool_activity
+for each row
+execute function public.set_updated_at();
+
 -- Enable RLS
 alter table public.conversations enable row level security;
 alter table public.messages enable row level security;
 alter table public.daily_facts enable row level security;
+alter table public.tool_activity enable row level security;
 
 -- RLS policies: users can only access their own rows
 
@@ -102,6 +120,24 @@ drop policy if exists "daily_facts_select_all" on public.daily_facts;
 create policy "daily_facts_select_all" on public.daily_facts
 for select
 using (true);
+
+-- Tool activity policies
+
+drop policy if exists "tool_activity_select_own" on public.tool_activity;
+create policy "tool_activity_select_own" on public.tool_activity
+for select
+using (auth.uid() = user_id);
+
+drop policy if exists "tool_activity_insert_own" on public.tool_activity;
+create policy "tool_activity_insert_own" on public.tool_activity
+for insert
+with check (auth.uid() = user_id);
+
+drop policy if exists "tool_activity_update_own" on public.tool_activity;
+create policy "tool_activity_update_own" on public.tool_activity
+for update
+using (auth.uid() = user_id)
+with check (auth.uid() = user_id);
 
 -- Important: we intentionally do NOT allow authenticated users to insert/update.
 -- Inserts should be done server-side using the service role key.

@@ -1,5 +1,6 @@
 import Image from "next/image";
 import { createSupabaseServerClient } from '@/lib/supabaseServer';
+import Link from 'next/link';
 
 type DailyFact = {
   day: string;
@@ -20,6 +21,27 @@ async function getDailyFact(): Promise<DailyFact | null> {
   }
 }
 
+async function getRecentActivity() {
+  try {
+    // Use absolute URL on server, relative on client; in a server component, relative works.
+    const res = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL ?? ''}/api/activity`, {
+      cache: 'no-store',
+    });
+
+    if (!res.ok) return [] as Array<{ kind: string; title: string; href: string }>;
+    const data = (await res.json()) as { items?: Array<{ kind: string; title: string; href: string }> };
+    return Array.isArray(data.items) ? data.items : [];
+  } catch {
+    return [] as Array<{ kind: string; title: string; href: string }>;
+  }
+}
+
+type RecentItem = {
+  kind: 'Chat' | 'Flashcards' | 'Quiz';
+  title: string;
+  href: string;
+};
+
 export default async function Home() {
   const supabase = await createSupabaseServerClient();
   const {
@@ -28,6 +50,10 @@ export default async function Home() {
 
   const isAuthed = Boolean(user);
   const daily = await getDailyFact();
+  const recent = await getRecentActivity();
+
+  // Only show real activity. If none is available, show an empty state in the UI.
+  const recentItems: RecentItem[] = (recent as RecentItem[]) ?? [];
 
   return (
     <main className="min-h-dvh bg-zinc-50">
@@ -87,6 +113,58 @@ export default async function Home() {
           </div>
         </section>
 
+        {/* 1) Recent Study Activity */}
+        {isAuthed ? (
+          <section className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="text-sm font-semibold text-zinc-900">Recent Study Activity</div>
+                <div className="mt-1 text-xs text-zinc-500">Pick up where you left off.</div>
+              </div>
+              <a href="/dashboard" className="text-xs font-medium text-indigo-700 hover:underline">
+                View all
+              </a>
+            </div>
+
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              {recentItems.length === 0 ? (
+                <div className="rounded-2xl border border-zinc-200 bg-white p-4 text-sm text-zinc-600 sm:col-span-3">
+                  No recent activity yet. Start a chat or try Flashcards/Quiz to see it here.
+                </div>
+              ) : (
+                recentItems.map((item) => {
+                  const badgeClass =
+                    item.kind === 'Chat'
+                      ? 'border-sky-200 bg-sky-50 text-sky-700'
+                      : item.kind === 'Flashcards'
+                        ? 'border-amber-200 bg-amber-50 text-amber-800'
+                        : 'border-emerald-200 bg-emerald-50 text-emerald-700';
+
+                  return (
+                    <a
+                      key={`${item.kind}:${item.title}`}
+                      href={item.href}
+                      className="group rounded-2xl border border-zinc-200 bg-white p-4 hover:bg-zinc-50"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <span
+                          className={`inline-flex items-center rounded-full border px-2 py-1 text-[11px] font-medium ${badgeClass}`}
+                        >
+                          {item.kind}
+                        </span>
+                        <span className="text-xs text-zinc-400 group-hover:text-zinc-500">Open →</span>
+                      </div>
+                      <div className="mt-3 text-sm font-semibold text-zinc-900">{item.title}</div>
+                      <div className="mt-1 text-xs text-zinc-600">Resume this study session</div>
+                    </a>
+                  );
+                })
+              )}
+            </div>
+          </section>
+        ) : null}
+
+        {/* 2) Main tiles */}
         <section className="grid gap-4 lg:grid-cols-3">
           {/* 1) Daily Study Fact */}
           <div className="relative overflow-hidden rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
+import { createSupabaseServerClient } from '@/lib/supabaseServer';
 
 export const runtime = 'nodejs';
 
@@ -73,6 +74,27 @@ export async function POST(req: Request) {
 
     if (!cleaned.length) {
       return NextResponse.json({ error: 'No flashcards generated', raw }, { status: 502 });
+    }
+
+    // Record recent tool usage (best-effort).
+    try {
+      const supabase = await createSupabaseServerClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (user) {
+        await supabase.from('tool_activity').upsert(
+          {
+            user_id: user.id,
+            tool: 'flashcards',
+            topic,
+          },
+          { onConflict: 'user_id,tool' }
+        );
+      }
+    } catch {
+      // ignore
     }
 
     return NextResponse.json({ topic, cards: cleaned });
