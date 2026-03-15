@@ -95,8 +95,18 @@ export default function ChatShell() {
         isPersisted: true,
       }));
 
-      setConversations(mapped);
-      setActiveId(mapped[0]!.id);
+      // Always start on a fresh chat after (re)login.
+      const newId = crypto.randomUUID();
+      const fresh: Conversation = {
+        id: newId,
+        messages: [],
+        createdAt: Date.now(),
+        title: 'New chat',
+        isPersisted: false,
+      };
+
+      setConversations([fresh, ...mapped]);
+      setActiveId(newId);
       setIsLoading(false);
     }
 
