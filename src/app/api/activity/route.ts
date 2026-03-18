@@ -12,16 +12,12 @@ export async function GET() {
     } = await supabase.auth.getUser();
 
     if (userErr) {
-      // If session is missing, don't 500; just return empty so the homepage can render.
       if (userErr.message?.toLowerCase?.().includes('auth session missing')) {
         return NextResponse.json({ items: [] });
       }
       return NextResponse.json({ error: userErr.message }, { status: 500 });
     }
-
-    if (!user) {
-      return NextResponse.json({ items: [] });
-    }
+    if (!user) return NextResponse.json({ items: [] });
 
     const { data: conv } = await supabase
       .from('conversations')
@@ -31,7 +27,6 @@ export async function GET() {
       .limit(1)
       .maybeSingle();
 
-    // If title is missing/default, fall back to latest user message preview.
     let chatTitle = (conv?.title ?? '').trim();
     if (conv?.id && (!chatTitle || chatTitle.toLowerCase() === 'new chat')) {
       const { data: lastUserMsg } = await supabase
@@ -50,41 +45,40 @@ export async function GET() {
       }
     }
 
-    // Tool activity (preferred source)
-    let tool: Array<{ tool: string; topic: string; updated_at: string }> = [];
+    // Tool activity: actual schema is (id, user_id, tool_name, created_at)
+    // No topic column exists, so we show a generic label.
+    let toolRows: Array<{ tool_name: string; created_at: string }> = [];
     try {
       const { data, error } = await supabase
         .from('tool_activity')
-        .select('tool,topic,updated_at')
+        .select('tool_name,created_at')
         .eq('user_id', user.id)
-        .order('updated_at', { ascending: false })
+        .order('created_at', { ascending: false })
         .limit(5);
+
       if (error) console.error('[api/activity] tool_activity query error:', error);
-      tool = (data ?? []) as any;
+      toolRows = (data ?? []) as any;
     } catch (e) {
       console.error('[api/activity] tool_activity query exception:', e);
-      tool = [];
-    }
-
-    if (!tool.length) {
-      console.warn('[api/activity] tool_activity returned 0 rows for user:', user.id);
+      toolRows = [];
     }
 
     const items: Array<{ kind: 'Chat' | 'Flashcards' | 'Quiz'; title: string; href: string }> = [];
 
-    if (conv?.id) {
-      items.push({ kind: 'Chat', title: chatTitle || 'Chat', href: '/dashboard' });
-    }
+    if (conv?.id) items.push({ kind: 'Chat', title: chatTitle || 'Chat', href: '/dashboard' });
 
-    for (const row of tool ?? []) {
-      if (row.tool === 'flashcards') {
-        items.push({ kind: 'Flashcards', title: row.topic, href: '/tools/flashcards' });
-      } else if (row.tool === 'quiz') {
-        items.push({ kind: 'Quiz', title: row.topic, href: '/tools/quiz' });
+    for (const row of toolRows) {
+      const tool = String(row.tool_name ?? '').toLowerCase().trim();
+      if (!tool) continue;
+
+      if (tool === 'flashcards' || tool === 'flashcard') {
+        items.push({ kind: 'Flashcards', title: 'Last used: Flashcards', href: '/tools/flashcards' });
+      } else if (tool === 'quiz' || tool === 'quizzes') {
+        items.push({ kind: 'Quiz', title: 'Last used: Quiz', href: '/tools/quiz' });
       }
     }
 
-    // Ensure stable ordering Chat -> Flashcards -> Quiz if possible
+    // stable ordering
     const order = new Map([['Chat', 0], ['Flashcards', 1], ['Quiz', 2]] as const);
     items.sort((a, b) => (order.get(a.kind) ?? 99) - (order.get(b.kind) ?? 99));
 

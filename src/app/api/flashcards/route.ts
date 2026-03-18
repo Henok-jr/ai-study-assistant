@@ -23,7 +23,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Missing topic' }, { status: 400 });
     }
 
-    // Require auth so we can record tool activity (and match the behavior of other protected features).
+    // Require auth so we can record tool activity.
     const supabase = await createSupabaseServerClient();
     const {
       data: { user },
@@ -86,14 +86,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'No flashcards generated', raw }, { status: 502 });
     }
 
-    // Record recent tool usage.
+    // Record recent tool usage (schema: id, user_id, tool_name, created_at).
     const { error: upsertErr } = await supabase.from('tool_activity').upsert(
       {
         user_id: user.id,
-        tool: 'flashcards',
-        topic,
-      },
-      { onConflict: 'user_id,tool' }
+        tool_name: 'flashcards',
+      } as any,
+      { onConflict: 'user_id,tool_name' as any }
     );
     if (upsertErr) console.error('[api/flashcards] tool_activity upsert error:', upsertErr);
 

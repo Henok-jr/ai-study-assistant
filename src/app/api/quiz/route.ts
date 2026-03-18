@@ -120,14 +120,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Not enough valid questions generated', raw }, { status: 502 });
     }
 
-    // Record recent tool usage.
+    // Record recent tool usage (schema uses `tool_name`; there is no `topic` column).
     const { error: upsertErr } = await supabase.from('tool_activity').upsert(
       {
         user_id: user.id,
-        tool: 'quiz',
-        topic,
-      },
-      { onConflict: 'user_id,tool' }
+        tool_name: 'quiz',
+      } as any,
+      { onConflict: 'user_id,tool_name' as any }
     );
     if (upsertErr) console.error('[api/quiz] tool_activity upsert error:', upsertErr);
 
