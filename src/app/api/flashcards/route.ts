@@ -23,6 +23,16 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Missing topic' }, { status: 400 });
     }
 
+    // Require auth so we can record tool activity (and match the behavior of other protected features).
+    const supabase = await createSupabaseServerClient();
+    const {
+      data: { user },
+      error: userErr,
+    } = await supabase.auth.getUser();
+
+    if (userErr) return NextResponse.json({ error: userErr.message }, { status: 401 });
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
     const client = getGitHubModelsClient();
     const completion = await client.chat.completions.create({
       model: process.env.GITHUB_MODELS_MODEL ?? 'openai/gpt-4o',
@@ -76,26 +86,16 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'No flashcards generated', raw }, { status: 502 });
     }
 
-    // Record recent tool usage (best-effort).
-    try {
-      const supabase = await createSupabaseServerClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (user) {
-        await supabase.from('tool_activity').upsert(
-          {
-            user_id: user.id,
-            tool: 'flashcards',
-            topic,
-          },
-          { onConflict: 'user_id,tool' }
-        );
-      }
-    } catch {
-      // ignore
-    }
+    // Record recent tool usage.
+    const { error: upsertErr } = await supabase.from('tool_activity').upsert(
+      {
+        user_id: user.id,
+        tool: 'flashcards',
+        topic,
+      },
+      { onConflict: 'user_id,tool' }
+    );
+    if (upsertErr) console.error('[api/flashcards] tool_activity upsert error:', upsertErr);
 
     return NextResponse.json({ topic, cards: cleaned });
   } catch (e) {

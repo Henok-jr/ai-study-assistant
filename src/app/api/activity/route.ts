@@ -12,6 +12,10 @@ export async function GET() {
     } = await supabase.auth.getUser();
 
     if (userErr) {
+      // If session is missing, don't 500; just return empty so the homepage can render.
+      if (userErr.message?.toLowerCase?.().includes('auth session missing')) {
+        return NextResponse.json({ items: [] });
+      }
       return NextResponse.json({ error: userErr.message }, { status: 500 });
     }
 
@@ -27,17 +31,49 @@ export async function GET() {
       .limit(1)
       .maybeSingle();
 
-    const { data: tool } = await supabase
-      .from('tool_activity')
-      .select('tool,topic,updated_at')
-      .eq('user_id', user.id)
-      .order('updated_at', { ascending: false })
-      .limit(2);
+    // If title is missing/default, fall back to latest user message preview.
+    let chatTitle = (conv?.title ?? '').trim();
+    if (conv?.id && (!chatTitle || chatTitle.toLowerCase() === 'new chat')) {
+      const { data: lastUserMsg } = await supabase
+        .from('messages')
+        .select('content,created_at')
+        .eq('conversation_id', conv.id)
+        .eq('user_id', user.id)
+        .eq('role', 'user')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (lastUserMsg?.content) {
+        const t = String(lastUserMsg.content).trim();
+        chatTitle = t.length > 40 ? t.slice(0, 40) + '…' : t;
+      }
+    }
+
+    // Tool activity (preferred source)
+    let tool: Array<{ tool: string; topic: string; updated_at: string }> = [];
+    try {
+      const { data, error } = await supabase
+        .from('tool_activity')
+        .select('tool,topic,updated_at')
+        .eq('user_id', user.id)
+        .order('updated_at', { ascending: false })
+        .limit(5);
+      if (error) console.error('[api/activity] tool_activity query error:', error);
+      tool = (data ?? []) as any;
+    } catch (e) {
+      console.error('[api/activity] tool_activity query exception:', e);
+      tool = [];
+    }
+
+    if (!tool.length) {
+      console.warn('[api/activity] tool_activity returned 0 rows for user:', user.id);
+    }
 
     const items: Array<{ kind: 'Chat' | 'Flashcards' | 'Quiz'; title: string; href: string }> = [];
 
-    if (conv?.title) {
-      items.push({ kind: 'Chat', title: conv.title, href: '/dashboard' });
+    if (conv?.id) {
+      items.push({ kind: 'Chat', title: chatTitle || 'Chat', href: '/dashboard' });
     }
 
     for (const row of tool ?? []) {

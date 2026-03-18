@@ -1,6 +1,7 @@
 import Image from "next/image";
 import { createSupabaseServerClient } from '@/lib/supabaseServer';
 import Link from 'next/link';
+import { cookies } from 'next/headers';
 
 type DailyFact = {
   day: string;
@@ -23,9 +24,19 @@ async function getDailyFact(): Promise<DailyFact | null> {
 
 async function getRecentActivity() {
   try {
-    // Use absolute URL on server, relative on client; in a server component, relative works.
-    const res = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL ?? ''}/api/activity`, {
+    // Call the API with the *current request cookies* so Supabase auth is available.
+    // Also, in a Server Component you won't necessarily see a browser Network request.
+    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
+
+    const cookieStore = await cookies();
+    const cookieHeader = cookieStore
+      .getAll()
+      .map((c: { name: string; value: string }) => `${c.name}=${encodeURIComponent(c.value)}`)
+      .join('; ');
+
+    const res = await fetch(`${baseUrl}/api/activity`, {
       cache: 'no-store',
+      headers: cookieHeader ? { cookie: cookieHeader } : undefined,
     });
 
     if (!res.ok) return [] as Array<{ kind: string; title: string; href: string }>;
@@ -50,7 +61,9 @@ export default async function Home() {
 
   const isAuthed = Boolean(user);
   const daily = await getDailyFact();
-  const recent = await getRecentActivity();
+
+  // Only fetch activity if logged in; prevents extra work and avoids any auth edge cases.
+  const recent = isAuthed ? await getRecentActivity() : [];
 
   // Only show real activity. If none is available, show an empty state in the UI.
   const recentItems: RecentItem[] = (recent as RecentItem[]) ?? [];

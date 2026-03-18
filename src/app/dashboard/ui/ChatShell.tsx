@@ -177,8 +177,13 @@ export default function ChatShell() {
       .insert([{ conversation_id: convId, role, content, user_id: user.id }]);
     if (error) throw error;
 
-    // Touch updated_at
-    await supabase.from('conversations').update({ title: undefined }).eq('id', convId);
+    // Touch updated_at (and keep title in sync) so "Recent Study Activity" can reflect the latest chat.
+    const conv = conversations.find((c) => c.id === convId);
+    const title =
+      (conv?.title && conv.title !== 'New chat' ? conv.title : '') ||
+      (role === 'user' ? (content.length > 40 ? content.slice(0, 40) + '…' : content) : 'New chat');
+
+    await supabase.from('conversations').update({ title }).eq('id', convId);
   }
 
   async function send(message: string) {
@@ -195,7 +200,12 @@ export default function ChatShell() {
     }));
 
     try {
+      // Persist conversation (creates with title derived from the first message).
       await ensurePersistedConversation(convId, message);
+
+      // Make sure the title is immediately persisted (not left as default).
+      await renameConversation(convId, message.length > 40 ? message.slice(0, 40) + '…' : message);
+
       await persistMessage(convId, 'user', message);
 
       const res = await fetch('/api/chat', {
@@ -294,13 +304,78 @@ export default function ChatShell() {
     }
   };
 
+  async function hydrateTitleIfNeeded(convId: string) {
+    const conv = conversations.find((c) => c.id === convId);
+    if (!conv) return;
+
+    const isDefault = !conv.title || conv.title.trim().toLowerCase() === 'new chat';
+    if (!isDefault) return;
+
+    const firstUserMsg = conv.messages.find((m) => m.role === 'user')?.content?.trim();
+    if (!firstUserMsg) return;
+
+    const title = firstUserMsg.length > 40 ? firstUserMsg.slice(0, 40) + '…' : firstUserMsg;
+
+    // Update UI immediately.
+    updateConversation(convId, (c) => ({ ...c, title }));
+
+    // Best-effort persist so sidebar history stays correct across reloads.
+    try {
+      const supabase = createSupabaseBrowserClient();
+      await supabase.from('conversations').update({ title }).eq('id', convId);
+    } catch {
+      // ignore
+    }
+  }
+
+  async function renameConversation(id: string, nextTitle: string) {
+    const title = nextTitle.trim();
+    if (!title) return;
+
+    // optimistic update
+    updateConversation(id, (c) => ({ ...c, title }));
+
+    try {
+      const supabase = createSupabaseBrowserClient();
+      const { error } = await supabase.from('conversations').update({ title }).eq('id', id);
+      if (error) throw error;
+    } catch (e) {
+      console.error('[chat] rename conversation error:', e);
+    }
+  }
+
+  async function deleteConversation(id: string) {
+    // optimistic update
+    setConversations((prev) => prev.filter((c) => c.id !== id));
+
+    // ensure something is selected
+    setActiveId((prevActive) => {
+      if (prevActive !== id) return prevActive;
+      const remaining = conversations.filter((c) => c.id !== id);
+      return remaining[0]?.id ?? '';
+    });
+
+    try {
+      const supabase = createSupabaseBrowserClient();
+      const { error } = await supabase.from('conversations').delete().eq('id', id);
+      if (error) throw error;
+    } catch (e) {
+      console.error('[chat] delete conversation error:', e);
+    }
+  }
+
   return (
     <div className="flex h-full min-h-0 w-full">
       <SidebarHistory
         items={historyItems}
-        onSelect={(id: string) => setActiveId(id)}
+        onSelect={(id: string) => {
+          setActiveId(id);
+          void hydrateTitleIfNeeded(id);
+        }}
         onNewChat={startNewChat}
         activeId={activeId}
+        onRename={renameConversation}
+        onDelete={deleteConversation}
       />
 
       <section className="flex min-h-0 flex-1 flex-col">

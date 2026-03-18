@@ -18,11 +18,25 @@ type Difficulty = 'easy' | 'medium' | 'hard';
 
 type QuizQ = { question: string; choices: string[]; answerIndex: number };
 
+type QuizPayload = QuizQ[] | { questions?: QuizQ[] } | { quiz?: QuizQ[] };
+
 export async function POST(req: Request) {
   try {
     const body = (await req.json().catch(() => ({}))) as { topic?: string; difficulty?: string };
     const topic = String(body.topic ?? '').trim();
     const difficultyRaw = String(body.difficulty ?? '').trim().toLowerCase();
+
+    if (!topic) return NextResponse.json({ error: 'Missing topic' }, { status: 400 });
+
+    // Require auth so we can record tool activity.
+    const supabase = await createSupabaseServerClient();
+    const {
+      data: { user },
+      error: userErr,
+    } = await supabase.auth.getUser();
+
+    if (userErr) return NextResponse.json({ error: userErr.message }, { status: 401 });
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const difficulty: Difficulty =
       difficultyRaw === 'hard'
@@ -32,8 +46,6 @@ export async function POST(req: Request) {
           : difficultyRaw === 'easy' || difficultyRaw === 'short'
             ? 'easy'
             : 'easy';
-
-    if (!topic) return NextResponse.json({ error: 'Missing topic' }, { status: 400 });
 
     // UI uses "Easy"; keep the label natural in the prompt.
     const difficultyLabel = difficulty === 'easy' ? 'easy' : difficulty;
@@ -51,34 +63,41 @@ export async function POST(req: Request) {
         {
           role: 'user',
           content:
-            `Topic: ${topic}\nDifficulty: ${difficultyLabel}\n\nGenerate 10 multiple-choice questions. Return JSON as an array like:\n[\n  {\n    "question": "...",\n    "choices": ["A", "B", "C", "D"],\n    "answerIndex": 0\n  }\n]\n\nRules:\n- choices must be plausible\n- answerIndex must be 0-3\n- Keep questions concise\n- Difficulty should match the requested level`,
+            `Topic: ${topic}\nDifficulty: ${difficultyLabel}\n\nGenerate 10 multiple-choice questions. Return JSON as an ARRAY (not an object) like:\n[\n  {\n    "question": "...",\n    "choices": ["A", "B", "C", "D"],\n    "answerIndex": 0\n  }\n]\n\nRules:\n- choices must be plausible\n- answerIndex must be 0-3\n- Keep questions concise\n- Difficulty should match the requested level`,
         },
       ],
-      response_format: { type: 'json_object' } as any,
+      response_format: { type: 'text' } as any,
     });
 
     const raw = completion.choices?.[0]?.message?.content ?? '';
 
-    let parsed: any;
+    let parsed: QuizPayload;
     try {
-      parsed = JSON.parse(raw);
+      parsed = JSON.parse(raw) as QuizPayload;
     } catch {
       return NextResponse.json({ error: 'Model returned invalid JSON', raw }, { status: 502 });
     }
 
     const questions = Array.isArray(parsed)
       ? parsed
-      : Array.isArray(parsed.questions)
-        ? parsed.questions
-        : Array.isArray(parsed.quiz)
-          ? parsed.quiz
+      : Array.isArray((parsed as any)?.questions)
+        ? (parsed as any).questions
+        : Array.isArray((parsed as any)?.quiz)
+          ? (parsed as any).quiz
           : null;
 
-    if (!questions) {
+    // Some models occasionally return a single question object; accept and wrap it.
+    const normalizedQuestions =
+      questions ??
+      ((parsed as any) && typeof (parsed as any) === 'object' && (parsed as any).question
+        ? [parsed as any]
+        : null);
+
+    if (!normalizedQuestions) {
       return NextResponse.json({ error: 'Unexpected JSON shape from model', raw }, { status: 502 });
     }
 
-    const cleaned: QuizQ[] = questions.slice(0, 10).map((q: any) => {
+    const cleaned: QuizQ[] = normalizedQuestions.slice(0, 10).map((q: any) => {
       const question = String(q?.question ?? '').trim();
       const choices = Array.isArray(q?.choices) ? q.choices.map((c: any) => String(c).trim()) : [];
       const answerIndex = Number(q?.answerIndex);
@@ -101,26 +120,16 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Not enough valid questions generated', raw }, { status: 502 });
     }
 
-    // Record recent tool usage (best-effort).
-    try {
-      const supabase = await createSupabaseServerClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (user) {
-        await supabase.from('tool_activity').upsert(
-          {
-            user_id: user.id,
-            tool: 'quiz',
-            topic,
-          },
-          { onConflict: 'user_id,tool' }
-        );
-      }
-    } catch {
-      // ignore
-    }
+    // Record recent tool usage.
+    const { error: upsertErr } = await supabase.from('tool_activity').upsert(
+      {
+        user_id: user.id,
+        tool: 'quiz',
+        topic,
+      },
+      { onConflict: 'user_id,tool' }
+    );
+    if (upsertErr) console.error('[api/quiz] tool_activity upsert error:', upsertErr);
 
     return NextResponse.json({ topic, difficulty: difficultyLabel, questions: valid });
   } catch (e) {
