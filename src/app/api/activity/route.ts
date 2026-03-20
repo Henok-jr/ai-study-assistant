@@ -65,7 +65,14 @@ export async function GET() {
 
     const items: Array<{ kind: 'Chat' | 'Flashcards' | 'Quiz'; title: string; href: string }> = [];
 
-    if (conv?.id) items.push({ kind: 'Chat', title: chatTitle || 'Chat', href: '/dashboard' });
+    // IMPORTANT: link to the actual conversation.
+    if (conv?.id) {
+      items.push({
+        kind: 'Chat',
+        title: chatTitle || 'Chat',
+        href: `/dashboard?conversationId=${encodeURIComponent(conv.id)}`,
+      });
+    }
 
     for (const row of toolRows) {
       const tool = String(row.tool_name ?? '').toLowerCase().trim();

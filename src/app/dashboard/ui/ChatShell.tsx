@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import ChatInput from '@/components/ChatInput';
 import ChatMessage from '@/components/ChatMessage';
 import SidebarHistory from '@/components/SidebarHistory';
@@ -24,6 +24,9 @@ type Conversation = {
 
 export default function ChatShell() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const requestedConversationId = searchParams.get('conversationId');
+
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeId, setActiveId] = useState<string>('');
   const [isSending, setIsSending] = useState(false);
@@ -95,7 +98,15 @@ export default function ChatShell() {
         isPersisted: true,
       }));
 
-      // Always start on a fresh chat after (re)login.
+      // If a conversation is requested (e.g. from Recent Activity), open it.
+      if (requestedConversationId && mapped.some((c) => c.id === requestedConversationId)) {
+        setConversations(mapped);
+        setActiveId(requestedConversationId);
+        setIsLoading(false);
+        return;
+      }
+
+      // Otherwise, start on a fresh chat after (re)login.
       const newId = crypto.randomUUID();
       const fresh: Conversation = {
         id: newId,
@@ -111,7 +122,7 @@ export default function ChatShell() {
     }
 
     load();
-  }, []);
+  }, [requestedConversationId]);
 
   const activeConversation = useMemo(
     () => conversations.find((c) => c.id === activeId),
