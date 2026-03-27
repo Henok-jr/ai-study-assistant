@@ -120,15 +120,31 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Not enough valid questions generated', raw }, { status: 502 });
     }
 
-    // Record recent tool usage (schema uses `tool_name`; there is no `topic` column).
-    const { error: upsertErr } = await supabase.from('tool_activity').upsert(
-      {
-        user_id: user.id,
-        tool_name: 'quiz',
-      } as any,
-      { onConflict: 'user_id,tool_name' as any }
-    );
-    if (upsertErr) console.error('[api/quiz] tool_activity upsert error:', upsertErr);
+    // Record tool usage. Support both tool_activity schemas.
+    // A) (id, user_id, tool_name, created_at) append-only
+    // B) (user_id, tool, topic, created_at, updated_at) last-used per tool
+    try {
+      // Prefer schema B (matches supabase.sql) so activity can show topic.
+      const { error: toolSchemaErr } = await supabase.from('tool_activity').upsert(
+        {
+          user_id: user.id,
+          tool: 'quiz',
+          topic,
+        } as any,
+        { onConflict: 'user_id,tool' as any }
+      );
+
+      if (toolSchemaErr) {
+        // Fall back to schema A
+        const { error: eventErr } = await supabase.from('tool_activity').insert({
+          user_id: user.id,
+          tool_name: 'quiz',
+        } as any);
+        if (eventErr) console.error('[api/quiz] tool_activity write error:', eventErr);
+      }
+    } catch (e) {
+      console.error('[api/quiz] tool_activity write exception:', e);
+    }
 
     return NextResponse.json({ topic, difficulty: difficultyLabel, questions: valid });
   } catch (e) {

@@ -47,7 +47,7 @@ async function getRecentActivity() {
   }
 }
 
-type RecentItem = {
+type tItem = {
   kind: 'Chat' | 'Flashcards' | 'Quiz';
   title: string;
   href: string;

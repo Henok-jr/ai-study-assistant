@@ -45,51 +45,117 @@ export async function GET() {
       }
     }
 
-    // Tool activity: actual schema is (id, user_id, tool_name, created_at)
-    // No topic column exists, so we show a generic label.
-    let toolRows: Array<{ tool_name: string; created_at: string }> = [];
+    type Kind = 'Chat' | 'Flashcards' | 'Quiz';
+    type Item = { kind: Kind; title: string; href: string; ts: number };
+
+    // Tool activity can be in one of two schemas depending on which SQL was applied:
+    // A) (id, user_id, tool_name, created_at)
+    // B) (user_id, tool, topic, created_at, updated_at)
+    type ToolEvent = { tool: string; topic?: string; ts: number };
+
+    const toolEvents: ToolEvent[] = [];
+
+    // Try schema A first
     try {
       const { data, error } = await supabase
         .from('tool_activity')
         .select('tool_name,created_at')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
-        .limit(5);
+        .limit(25);
 
-      if (error) console.error('[api/activity] tool_activity query error:', error);
-      toolRows = (data ?? []) as any;
+      if (!error && Array.isArray(data) && data.length) {
+        for (const row of data as any[]) {
+          const tool = String(row?.tool_name ?? '').trim();
+          if (!tool) continue;
+          const ts = row?.created_at ? Date.parse(String(row.created_at)) : NaN;
+          toolEvents.push({ tool, ts: Number.isFinite(ts) ? ts : 0 });
+        }
+      } else if (error) {
+        // ignore and fall back to schema B
+        console.error('[api/activity] tool_activity query (tool_name) error:', error);
+      }
     } catch (e) {
-      console.error('[api/activity] tool_activity query exception:', e);
-      toolRows = [];
+      console.error('[api/activity] tool_activity query (tool_name) exception:', e);
     }
 
-    const items: Array<{ kind: 'Chat' | 'Flashcards' | 'Quiz'; title: string; href: string }> = [];
+    // Fall back to schema B if we didn't find events above
+    if (toolEvents.length === 0) {
+      try {
+        const { data, error } = await supabase
+          .from('tool_activity')
+          .select('tool,topic,updated_at,created_at')
+          .eq('user_id', user.id)
+          .order('updated_at', { ascending: false })
+          .limit(10);
 
-    // IMPORTANT: link to the actual conversation.
-    if (conv?.id) {
-      items.push({
-        kind: 'Chat',
-        title: chatTitle || 'Chat',
-        href: `/dashboard?conversationId=${encodeURIComponent(conv.id)}`,
-      });
-    }
-
-    for (const row of toolRows) {
-      const tool = String(row.tool_name ?? '').toLowerCase().trim();
-      if (!tool) continue;
-
-      if (tool === 'flashcards' || tool === 'flashcard') {
-        items.push({ kind: 'Flashcards', title: 'Last used: Flashcards', href: '/tools/flashcards' });
-      } else if (tool === 'quiz' || tool === 'quizzes') {
-        items.push({ kind: 'Quiz', title: 'Last used: Quiz', href: '/tools/quiz' });
+        if (error) console.error('[api/activity] tool_activity query (tool/topic) error:', error);
+        if (Array.isArray(data)) {
+          for (const row of data as any[]) {
+            const tool = String(row?.tool ?? '').trim();
+            if (!tool) continue;
+            const tsRaw = row?.updated_at ?? row?.created_at;
+            const ts = tsRaw ? Date.parse(String(tsRaw)) : NaN;
+            const topic = row?.topic ? String(row.topic).trim() : undefined;
+            toolEvents.push({ tool, topic, ts: Number.isFinite(ts) ? ts : 0 });
+          }
+        }
+      } catch (e) {
+        console.error('[api/activity] tool_activity query (tool/topic) exception:', e);
       }
     }
 
-    // stable ordering
-    const order = new Map([['Chat', 0], ['Flashcards', 1], ['Quiz', 2]] as const);
-    items.sort((a, b) => (order.get(a.kind) ?? 99) - (order.get(b.kind) ?? 99));
+    const merged: Item[] = [];
 
-    return NextResponse.json({ items });
+    // Chat
+    if (conv?.id) {
+      const ts = conv?.updated_at ? Date.parse(String(conv.updated_at)) : Date.now();
+      merged.push({
+        kind: 'Chat',
+        title: chatTitle || 'Chat',
+        href: `/dashboard?conversationId=${encodeURIComponent(conv.id)}`,
+        ts: Number.isFinite(ts) ? ts : Date.now(),
+      });
+    }
+
+    // Tools: keep latest per kind
+    const latestToolByKind = new Map<Exclude<Kind, 'Chat'>, Item>();
+    for (const ev of toolEvents) {
+      const tool = String(ev.tool).toLowerCase().trim();
+      const safeTs = Number.isFinite(ev.ts) ? ev.ts : 0;
+
+      if (tool === 'flashcards' || tool === 'flashcard') {
+        const existing = latestToolByKind.get('Flashcards');
+        if (!existing || safeTs > existing.ts) {
+          const topic = ev.topic ? `: ${ev.topic}` : '';
+          latestToolByKind.set('Flashcards', {
+            kind: 'Flashcards',
+            title: `Last used: Flashcards${topic}`,
+            href: '/tools/flashcards',
+            ts: safeTs,
+          });
+        }
+      } else if (tool === 'quiz' || tool === 'quizzes') {
+        const existing = latestToolByKind.get('Quiz');
+        if (!existing || safeTs > existing.ts) {
+          const topic = ev.topic ? `: ${ev.topic}` : '';
+          latestToolByKind.set('Quiz', {
+            kind: 'Quiz',
+            title: `Last used: Quiz${topic}`,
+            href: '/tools/quiz',
+            ts: safeTs,
+          });
+        }
+      }
+    }
+
+    for (const it of latestToolByKind.values()) merged.push(it);
+
+    merged.sort((a, b) => b.ts - a.ts);
+
+    return NextResponse.json({
+      items: merged.slice(0, 6).map(({ kind, title, href }) => ({ kind, title, href })),
+    });
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Unknown error';
     console.error('[api/activity] error:', e);

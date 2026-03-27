@@ -86,15 +86,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'No flashcards generated', raw }, { status: 502 });
     }
 
-    // Record recent tool usage (schema: id, user_id, tool_name, created_at).
-    const { error: upsertErr } = await supabase.from('tool_activity').upsert(
-      {
-        user_id: user.id,
-        tool_name: 'flashcards',
-      } as any,
-      { onConflict: 'user_id,tool_name' as any }
-    );
-    if (upsertErr) console.error('[api/flashcards] tool_activity upsert error:', upsertErr);
+    // Record tool usage as an append-only event.
+    // Schema: (id, user_id, tool_name, created_at)
+    const { error: insertErr } = await supabase.from('tool_activity').insert({
+      user_id: user.id,
+      tool_name: 'flashcards',
+    } as any);
+    if (insertErr) console.error('[api/flashcards] tool_activity insert error:', insertErr);
 
     return NextResponse.json({ topic, cards: cleaned });
   } catch (e) {
