@@ -1,5 +1,8 @@
 import ChatShell from './ui/ChatShell';
 import Link from 'next/link';
+import { Suspense } from 'react';
+
+export const dynamic = 'force-dynamic';
 
 export default function DashboardPage() {
   return (
@@ -24,7 +27,9 @@ export default function DashboardPage() {
         </div>
 
         <div className="min-h-0 flex-1">
-          <ChatShell />
+          <Suspense fallback={<div className="p-6 text-sm text-zinc-600">Loading…</div>}>
+            <ChatShell />
+          </Suspense>
         </div>
       </div>
     </main>
