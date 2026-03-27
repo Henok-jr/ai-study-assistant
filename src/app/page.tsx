@@ -66,7 +66,7 @@ export default async function Home() {
   const recent = isAuthed ? await getRecentActivity() : [];
 
   // Only show real activity. If none is available, show an empty state in the UI.
-  const recentItems: RecentItem[] = (recent as RecentItem[]) ?? [];
+  const recentItems: tItem[] = (recent as tItem[]) ?? [];
 
   return (
     <main className="min-h-dvh bg-zinc-50">
@@ -134,9 +134,7 @@ export default async function Home() {
                 <div className="text-sm font-semibold text-zinc-900">Recent Study Activity</div>
                 <div className="mt-1 text-xs text-zinc-500">Pick up where you left off.</div>
               </div>
-              <a href="/dashboard" className="text-xs font-medium text-indigo-700 hover:underline">
-                View all
-              </a>
+              {/* View all removed */}
             </div>
 
             <div className="mt-4 grid gap-3 sm:grid-cols-3">
