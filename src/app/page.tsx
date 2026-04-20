@@ -69,15 +69,15 @@ export default async function Home() {
   const recentItems: tItem[] = (recent as tItem[]) ?? [];
 
   return (
-    <main className="min-h-dvh bg-zinc-50">
+    <main className="min-h-dvh">
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-10 px-6 py-16">
         <header className="flex items-center justify-between">
-          <div className="text-sm font-semibold text-zinc-900">AI Study Assistant</div>
+          <div className="text-sm font-semibold accent-text">AI Study Assistant</div>
           <nav className="flex items-center gap-3">
             {isAuthed ? (
               <a
                 href="/dashboard"
-                className="rounded-lg bg-zinc-900 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-800"
+                className="accent-bg rounded-lg px-3 py-2 text-sm font-medium hover:opacity-95"
               >
                 Go to dashboard
               </a>
@@ -91,7 +91,7 @@ export default async function Home() {
                 </a>
                 <a
                   href="/dashboard"
-                  className="rounded-lg bg-zinc-900 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-800"
+                  className="accent-bg rounded-lg px-3 py-2 text-sm font-medium hover:opacity-95"
                 >
                   Go to dashboard
                 </a>
@@ -112,7 +112,7 @@ export default async function Home() {
             {isAuthed ? null : (
               <a
                 href="/signup"
-                className="inline-flex h-11 items-center justify-center rounded-xl bg-zinc-900 px-5 text-sm font-medium text-white hover:bg-zinc-800"
+                className="accent-bg inline-flex h-11 items-center justify-center rounded-xl px-5 text-sm font-medium hover:opacity-95"
               >
                 Create account
               </a>

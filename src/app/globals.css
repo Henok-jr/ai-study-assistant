@@ -1,15 +1,44 @@
 @import "tailwindcss";
 
 :root {
+  /* Base */
   --background: #ffffff;
   --foreground: #171717;
-}
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  /* Accent used for buttons/links/etc */
+  --accent: #18181b; /* zinc-900 */
+  --accent-foreground: #ffffff;
+
+  /* Subtle page tint driven by theme */
+  --page-tint: #fafafa;
+
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+}
+
+/* Theme overrides via <html data-theme="..."> */
+html[data-theme='zinc'] {
+  --accent: #18181b;
+  --accent-foreground: #ffffff;
+  --page-tint: #fafafa;
+}
+
+html[data-theme='blue'] {
+  --accent: #2563eb; /* blue-600 */
+  --accent-foreground: #ffffff;
+  --page-tint: #eff6ff; /* blue-50 */
+}
+
+html[data-theme='emerald'] {
+  --accent: #059669; /* emerald-600 */
+  --accent-foreground: #ffffff;
+  --page-tint: #ecfdf5; /* emerald-50 */
+}
+
+html[data-theme='rose'] {
+  --accent: #e11d48; /* rose-600 */
+  --accent-foreground: #ffffff;
+  --page-tint: #fff1f2; /* rose-50 */
 }
 
 @media (prefers-color-scheme: dark) {
@@ -20,7 +49,17 @@
 }
 
 body {
-  background: var(--background);
+  background: var(--page-tint);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Utility classes for accent colors */
+.accent-bg {
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+
+.accent-text {
+  color: var(--accent);
 }
