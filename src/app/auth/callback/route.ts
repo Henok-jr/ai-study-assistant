@@ -10,6 +10,6 @@ export async function GET(req: Request) {
     await supabase.auth.exchangeCodeForSession(code);
   }
 
-  // Redirect to dashboard after auth flow
-  return NextResponse.redirect(new URL('/dashboard', url.origin));
+  // Redirect to home after auth flow
+  return NextResponse.redirect(new URL('/', url.origin));
 }

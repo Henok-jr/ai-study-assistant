@@ -6,10 +6,13 @@ export default function GoogleSignInButton() {
   async function onClick() {
     const supabase = createSupabaseBrowserClient();
 
+    const redirectTo =
+      process.env.NEXT_PUBLIC_AUTH_REDIRECT_URL?.trim() || `${window.location.origin}/auth/callback`;
+
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
+        redirectTo,
       },
     });
 

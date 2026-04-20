@@ -35,12 +35,11 @@ export async function middleware(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname;
 
-  const isHome = pathname === '/';
   const isProtected = pathname.startsWith('/dashboard') || pathname.startsWith('/tools');
   const isAuthRoute = pathname.startsWith('/login') || pathname.startsWith('/signup');
 
-  // Force the first screen to be login if not authenticated.
-  if ((isHome || isProtected) && !user) {
+  // Protect authenticated sections, but keep the landing page (/) public.
+  if (isProtected && !user) {
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = '/login';
     redirectUrl.searchParams.set('next', pathname);
@@ -49,7 +48,7 @@ export async function middleware(request: NextRequest) {
 
   if (isAuthRoute && user) {
     const redirectUrl = request.nextUrl.clone();
-    redirectUrl.pathname = '/dashboard';
+    redirectUrl.pathname = '/';
     redirectUrl.search = '';
     return NextResponse.redirect(redirectUrl);
   }

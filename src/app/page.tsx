@@ -2,6 +2,7 @@ import Image from "next/image";
 import { createSupabaseServerClient } from '@/lib/supabaseServer';
 import Link from 'next/link';
 import { cookies } from 'next/headers';
+import LogoutButton from '@/app/components/LogoutButton';
 
 type DailyFact = {
   day: string;
@@ -75,12 +76,15 @@ export default async function Home() {
           <div className="text-sm font-semibold accent-text">AI Study Assistant</div>
           <nav className="flex items-center gap-3">
             {isAuthed ? (
-              <a
-                href="/dashboard"
-                className="accent-bg rounded-lg px-3 py-2 text-sm font-medium hover:opacity-95"
-              >
-                Go to dashboard
-              </a>
+              <>
+                <LogoutButton />
+                <a
+                  href="/dashboard"
+                  className="accent-bg rounded-lg px-3 py-2 text-sm font-medium hover:opacity-95"
+                >
+                  Go to dashboard
+                </a>
+              </>
             ) : (
               <>
                 <a
